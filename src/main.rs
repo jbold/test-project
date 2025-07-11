@@ -7,6 +7,9 @@ use auth::{AuthManager, login_user, validate_token, logout_user, check_auth_stat
 
 #[tokio::main]
 async fn main() {
+    // Load environment variables from .env file
+    dotenv::dotenv().ok();
+    
     let auth_manager = AuthManager::new().expect("Failed to initialize auth manager");
 
     tauri::Builder::default()

@@ -2,12 +2,29 @@ use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::path::PathBuf;
 use tauri::State;
+use keyring::Entry;
 
-// API Base URL - in production this would be configurable
-const API_BASE_URL: &str = "http://localhost:8000";
+// Configuration structure
+#[derive(Debug, Clone)]
+pub struct AuthConfig {
+    pub api_base_url: String,
+    pub keyring_service: String,
+    pub keyring_account: String,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            api_base_url: env::var("API_BASE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string()),
+            keyring_service: "legal-toolkit".to_string(),
+            keyring_account: "auth-token".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthResult {
@@ -56,12 +73,20 @@ pub struct JwtClaims {
 
 pub struct AuthManager {
     client: Client,
+    config: AuthConfig,
+    keyring_entry: Entry,
 }
 
 impl AuthManager {
     pub fn new() -> Result<Self, String> {
+        let config = AuthConfig::default();
+        let keyring_entry = Entry::new(&config.keyring_service, &config.keyring_account)
+            .map_err(|e| format!("Failed to create keyring entry: {}", e))?;
+        
         Ok(Self {
             client: Client::new(),
+            config,
+            keyring_entry,
         })
     }
     
@@ -87,7 +112,7 @@ impl AuthManager {
 
         let response = self
             .client
-            .post(&format!("{}/auth/login", API_BASE_URL))
+            .post(&format!("{}/auth/login", self.config.api_base_url))
             .json(&login_data)
             .send()
             .await
@@ -131,7 +156,7 @@ impl AuthManager {
     pub async fn get_user_profile(&self, token: &str) -> Result<UserProfile, String> {
         let response = self
             .client
-            .get(&format!("{}/user/profile", API_BASE_URL))
+            .get(&format!("{}/user/profile", self.config.api_base_url))
             .header("Authorization", format!("Bearer {}", token))
             .send()
             .await
@@ -189,89 +214,119 @@ impl AuthManager {
     }
 
     pub fn save_token(&self, token: &str) -> Result<(), String> {
-        let token_file_path = self.get_token_file_path()?;
+        // Save to secure keyring
         let token_data = serde_json::json!({
             "access_token": token,
             "stored_at": Utc::now()
         });
         
-        fs::write(&token_file_path, token_data.to_string())
-            .map_err(|e| format!("Failed to save token: {}", e))?;
+        self.keyring_entry
+            .set_password(&token_data.to_string())
+            .map_err(|e| format!("Failed to save token to keyring: {}", e))?
         
         Ok(())
     }
 
     pub fn load_token(&self) -> Result<Option<String>, String> {
-        let token_file_path = self.get_token_file_path()?;
-        if !token_file_path.exists() {
-            return Ok(None);
-        }
-        
-        let token_data = fs::read_to_string(&token_file_path)
-            .map_err(|e| format!("Failed to read token file: {}", e))?;
-        
-        let token_json: serde_json::Value = serde_json::from_str(&token_data)
-            .map_err(|e| format!("Failed to parse token file: {}", e))?;
-        
-        if let Some(token) = token_json.get("access_token").and_then(|v| v.as_str()) {
-            Ok(Some(token.to_string()))
-        } else {
-            Ok(None)
+        // Load from secure keyring only
+        match self.keyring_entry.get_password() {
+            Ok(token_data) => {
+                let token_json: serde_json::Value = serde_json::from_str(&token_data)
+                    .map_err(|e| format!("Failed to parse token from keyring: {}", e))?;
+                
+                if let Some(token) = token_json.get("access_token").and_then(|v| v.as_str()) {
+                    Ok(Some(token.to_string()))
+                } else {
+                    Ok(None)
+                }
+            }
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(format!("Failed to load token from keyring: {}", e)),
         }
     }
 
     pub fn clear_token(&self) -> Result<(), String> {
-        let token_file_path = self.get_token_file_path()?;
-        if token_file_path.exists() {
-            fs::remove_file(&token_file_path)
-                .map_err(|e| format!("Failed to remove token file: {}", e))?;
+        // Clear from keyring only
+        match self.keyring_entry.delete_password() {
+            Ok(()) => Ok(()),
+            Err(keyring::Error::NoEntry) => Ok(()), // Already cleared
+            Err(e) => Err(format!("Failed to clear token from keyring: {}", e)),
         }
-        Ok(())
     }
 
     pub fn has_stored_token(&self) -> bool {
-        self.get_token_file_path().map_or(false, |path| path.exists())
+        // Check keyring only
+        match self.keyring_entry.get_password() {
+            Ok(_) => true,
+            Err(_) => false,
+        }
     }
 }
 
-// Tauri commands
+// Custom error types for better error handling
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthError {
+    pub error_type: String,
+    pub message: String,
+    pub user_message: String,
+}
+
+impl AuthError {
+    fn new(error_type: &str, message: &str, user_message: &str) -> Self {
+        Self {
+            error_type: error_type.to_string(),
+            message: message.to_string(),
+            user_message: user_message.to_string(),
+        }
+    }
+}
+
+// Tauri commands with proper error handling
 #[tauri::command]
 pub async fn login_user(
     auth_manager: State<'_, AuthManager>,
     credentials: UserCredentials,
-) -> Result<AuthResult, String> {
+) -> Result<AuthResult, AuthError> {
     match auth_manager.login(&credentials.email, &credentials.password).await {
         Ok(result) => Ok(result),
-        Err(e) => Ok(AuthResult {
-            success: false,
-            user_id: None,
-            message: format!("Login error: {}", e),
-            token: None,
-            user_profile: None,
-        }),
+        Err(e) => {
+            // Log the actual error for debugging
+            eprintln!("[AUTH_ERROR] Login failed: {}", e);
+            
+            // Return proper error instead of masking as success
+            Err(AuthError::new(
+                "LOGIN_FAILED",
+                &e,
+                "Login failed. Please check your credentials and try again."
+            ))
+        }
     }
 }
 
 #[tauri::command]
 pub async fn validate_token(
     auth_manager: State<'_, AuthManager>,
-) -> Result<AuthResult, String> {
+) -> Result<AuthResult, AuthError> {
     match auth_manager.validate_stored_token().await {
         Ok(result) => Ok(result),
-        Err(e) => Ok(AuthResult {
-            success: false,
-            user_id: None,
-            message: format!("Token validation error: {}", e),
-            token: None,
-            user_profile: None,
-        }),
+        Err(e) => {
+            // Log the actual error for debugging
+            eprintln!("[AUTH_ERROR] Token validation failed: {}", e);
+            
+            // Return proper error instead of masking as success
+            Err(AuthError::new(
+                "TOKEN_VALIDATION_FAILED",
+                &e,
+                "Session expired. Please log in again."
+            ))
+        }
     }
 }
 
 #[tauri::command]
 pub async fn logout_user(
     auth_manager: State<'_, AuthManager>,
-) -> Result<AuthResult, String> {
+) -> Result<AuthResult, AuthError> {
     match auth_manager.clear_token() {
         Ok(_) => Ok(AuthResult {
             success: true,
@@ -280,13 +335,17 @@ pub async fn logout_user(
             token: None,
             user_profile: None,
         }),
-        Err(e) => Ok(AuthResult {
-            success: false,
-            user_id: None,
-            message: format!("Logout error: {}", e),
-            token: None,
-            user_profile: None,
-        }),
+        Err(e) => {
+            // Log the actual error for debugging
+            eprintln!("[AUTH_ERROR] Logout failed: {}", e);
+            
+            // Return proper error instead of masking as success
+            Err(AuthError::new(
+                "LOGOUT_FAILED",
+                &e,
+                "Failed to logout. Please try again."
+            ))
+        }
     }
 }
 
@@ -300,31 +359,47 @@ pub async fn check_auth_status(
 #[tauri::command]
 pub async fn refresh_user_profile(
     auth_manager: State<'_, AuthManager>,
-) -> Result<AuthResult, String> {
-    if let Some(token) = auth_manager.load_token()? {
-        match auth_manager.get_user_profile(&token).await {
-            Ok(profile) => Ok(AuthResult {
-                success: true,
-                user_id: Some(profile.id.to_string()),
-                message: "Profile refreshed".to_string(),
-                token: Some(token),
-                user_profile: Some(profile),
-            }),
-            Err(e) => Ok(AuthResult {
-                success: false,
-                user_id: None,
-                message: format!("Profile refresh error: {}", e),
-                token: None,
-                user_profile: None,
-            }),
+) -> Result<AuthResult, AuthError> {
+    match auth_manager.load_token() {
+        Ok(Some(token)) => {
+            match auth_manager.get_user_profile(&token).await {
+                Ok(profile) => Ok(AuthResult {
+                    success: true,
+                    user_id: Some(profile.id.to_string()),
+                    message: "Profile refreshed".to_string(),
+                    token: Some(token),
+                    user_profile: Some(profile),
+                }),
+                Err(e) => {
+                    // Log the actual error for debugging
+                    eprintln!("[AUTH_ERROR] Profile refresh failed: {}", e);
+                    
+                    // Return proper error instead of masking as success
+                    Err(AuthError::new(
+                        "PROFILE_REFRESH_FAILED",
+                        &e,
+                        "Failed to refresh profile. Please try logging in again."
+                    ))
+                }
+            }
+        },
+        Ok(None) => {
+            Err(AuthError::new(
+                "NO_TOKEN",
+                "No authentication token found",
+                "Please log in to continue."
+            ))
+        },
+        Err(e) => {
+            // Log the actual error for debugging
+            eprintln!("[AUTH_ERROR] Token loading failed: {}", e);
+            
+            // Return proper error instead of masking as success
+            Err(AuthError::new(
+                "TOKEN_LOAD_FAILED",
+                &e,
+                "Authentication error. Please try logging in again."
+            ))
         }
-    } else {
-        Ok(AuthResult {
-            success: false,
-            user_id: None,
-            message: "No token found".to_string(),
-            token: None,
-            user_profile: None,
-        })
     }
 }

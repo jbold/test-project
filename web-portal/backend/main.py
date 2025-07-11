@@ -222,17 +222,31 @@ async def create_checkout_session(
 @app.get("/download/app")
 async def download_app(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Download app with auth token (requires active subscription)"""
-    # Development bypass - remove this in production
-    if os.getenv("DEVELOPMENT_MODE", "false").lower() == "true":
-        pass  # Skip subscription check in development
-    else:
-        # Check if user has active subscription
-        subscription = db.query(UserSubscription).filter(
-            UserSubscription.user_id == current_user.id,
-            UserSubscription.is_active == True
-        ).first()
-        
-        if not subscription:
+    # Check if user has active subscription
+    subscription = db.query(UserSubscription).filter(
+        UserSubscription.user_id == current_user.id,
+        UserSubscription.is_active == True
+    ).first()
+    
+    # Check if we're in Stripe test mode (using test keys)
+    stripe_secret_key = os.getenv("STRIPE_SECRET_KEY", "")
+    is_stripe_test_mode = stripe_secret_key.startswith("sk_test_")
+    
+    if not subscription:
+        if is_stripe_test_mode:
+            logger.info(f"Stripe test mode: Creating test subscription for user {current_user.id}")
+            # In test mode, create a test subscription for development workflow
+            subscription = UserSubscription(
+                user_id=current_user.id,
+                plan_type="test_subscription",
+                is_active=True,
+                stripe_subscription_id="test_sub_" + str(current_user.id),
+                created_at=datetime.utcnow()
+            )
+            db.add(subscription)
+            db.commit()
+        else:
+            # Production mode: Strict subscription check
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Active subscription required to download app"
