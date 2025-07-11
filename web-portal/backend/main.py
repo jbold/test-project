@@ -222,16 +222,24 @@ async def create_checkout_session(
 @app.get("/download/app")
 async def download_app(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Download app with auth token (requires active subscription)"""
-    # Development bypass - remove this in production
+    # Check if user has active subscription
+    subscription = db.query(UserSubscription).filter(
+        UserSubscription.user_id == current_user.id,
+        UserSubscription.is_active == True
+    ).first()
+    
+    # Development mode: Allow access with warning log
     if os.getenv("DEVELOPMENT_MODE", "false").lower() == "true":
-        pass  # Skip subscription check in development
+        if not subscription:
+            logger.warning(f"DEVELOPMENT MODE: Allowing app download without subscription for user {current_user.id}")
+            # Still create a mock subscription for proper token generation
+            subscription = UserSubscription(
+                user_id=current_user.id,
+                plan_type="development",
+                is_active=True
+            )
     else:
-        # Check if user has active subscription
-        subscription = db.query(UserSubscription).filter(
-            UserSubscription.user_id == current_user.id,
-            UserSubscription.is_active == True
-        ).first()
-        
+        # Production mode: Strict subscription check
         if not subscription:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

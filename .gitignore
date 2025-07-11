@@ -72,7 +72,7 @@ case-files/
 temp/
 
 # Project Documentation (private)
-CLAUDE.md
+# CLAUDE.md - Removed from gitignore for PR review access
 
 # Backend environment files
 web-portal/backend/.env
