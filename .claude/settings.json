@@ -1,0 +1,88 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/security-scan.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash.*cargo|Bash.*npm|Bash.*pip",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/validate-env.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/format-all.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write.*\\.rs$|Edit.*\\.rs$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/dev/code/test-project && cargo check"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/log-notification.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/session-cleanup.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/subagent-log.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/dev/code/test-project/scripts/preserve-context.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
