@@ -1,1 +1,0 @@
-import{E as s,D as m,z as u}from"../../chunks/index.js";import"clsx";import"@tauri-apps/api/core";function p(t,o){u(),t.out+='<main class="svelte-1508om2"><!---->',s(t,o,"default",{}),t.out+="<!----></main>",m()}export{p as default};

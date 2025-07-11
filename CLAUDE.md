@@ -19,13 +19,13 @@
 
 ### Web Portal (SaaS Layer)
 - **FastAPI + Stripe**: Authentication, subscription management, app distribution
-- **Location**: `/legal-toolkit/web-portal/`
+- **Location**: `/web-portal/`
 - **Purpose**: Secure authentication, billing, desktop app downloads
 - **Technology Stack**: FastAPI, Stripe API, PostgreSQL, JWT tokens
 
 ### Desktop Application (Privacy Layer)  
 - **Tauri + Svelte**: Local AI processing, document management, case evolution
-- **Location**: `/legal-toolkit/`
+- **Location**: `/` (project root)
 - **Purpose**: Private AI inference, sensitive document processing, temporal case memory
 - **Technology Stack**: Tauri 2.0, Svelte, Rust, LlamaEdge/WasmEdge
 
@@ -66,22 +66,40 @@
 
 ## Development Commands
 
-### Desktop Application
+### Quick Development Scripts
 ```bash
-cd legal-toolkit
+./scripts/dev-quick.sh          # Interactive development menu
+./scripts/dev-desktop.sh        # Desktop app only (Tauri + Svelte)
+./scripts/dev-web.sh            # Web portal only (FastAPI + Svelte)
+./scripts/dev-all.sh            # Full environment (everything)
+./scripts/dev-services.sh       # Backing services only (Docker)
+```
+
+### Individual Commands
+
+#### Desktop Application
+```bash
 cargo tauri dev                 # Development server
 cargo tauri build              # Production build
 cargo check                    # Rust compilation check
 cargo test                     # Run tests
 ```
 
-### Web Portal
+#### Web Portal
 ```bash
-cd legal-toolkit/web-portal/backend
+cd web-portal/backend
 uvicorn main:app --reload      # FastAPI development
 cd ../frontend  
 npm run dev                    # Svelte development
 npm run build                  # Production build
+```
+
+#### Services Management
+```bash
+./scripts/dev-services.sh start    # Start all Docker services
+./scripts/dev-services.sh status   # Check service status
+./scripts/dev-services.sh logs     # View all logs
+./scripts/dev-services.sh stop     # Stop all services
 ```
 
 ### AI Infrastructure
@@ -144,6 +162,59 @@ ipfs daemon                   # IPFS storage layer
 - **WSL/GTK issues**: Provide native alternatives, graceful fallbacks
 - **Network failures**: Implement robust retry logic with exponential backoff
 - **Authentication failures**: Clear user messaging with specific resolution steps
+
+## Critical Development Protocol: Error Handling & Sudo Permissions
+
+### STOP-WORK Protocol
+**MANDATORY**: When any of the following occurs, IMMEDIATELY stop all work and await user guidance:
+
+1. **Sudo Permission Required**: Any command requiring `sudo` privileges
+2. **System-Level Errors**: Permission denied, access violations, system dependency failures
+3. **Compilation Failures**: Unresolvable cargo build errors, missing system libraries
+4. **Network/Authentication Errors**: API failures, certificate issues, connection problems
+5. **Environment Corruption**: Broken development environment, conflicting dependencies
+
+### Error Response Format
+When stopping work, provide:
+
+```
+🛑 STOP-WORK: [Error Type]
+
+**Error Description**: Brief explanation of what failed
+**Root Cause**: Technical reason for the failure
+**Recommended Fix**: Specific command or solution to try
+**Terminal Command**: Exact command for user to copy/paste
+
+Example:
+sudo apt-get install libgtk-3-dev libwebkit2gtk-4.0-dev
+
+**Next Steps**: What to do after running the command
+```
+
+### Sudo Command Categories
+Commands requiring user execution:
+- **System Package Installation**: `sudo apt-get install`, `sudo npm install -g`
+- **Permission Changes**: `sudo chown`, `sudo chmod`, `sudo mkdir`
+- **Service Management**: `sudo systemctl`, `sudo service`
+- **System Configuration**: `sudo echo > /etc/`, editing system files
+- **Docker/Container Management**: `sudo docker`, privileged container operations
+
+### Resolution Workflow
+1. **Stop Work**: Immediately halt all progress
+2. **Diagnose**: Identify exact error and root cause
+3. **Recommend**: Provide specific terminal command
+4. **Wait**: Allow user to execute command in separate terminal
+5. **Verify**: Confirm fix before resuming development
+6. **Continue**: Resume superintelligent development
+
+### DevContainer Exception
+When working inside devcontainer environment:
+- Most system dependencies pre-installed
+- Reduced sudo requirements
+- Container-level permissions handled automatically
+- Focus on application-level development
+
+**Remember**: Better to pause and get it right than to proceed with broken environment. Ultra-rapid development requires stable foundation.
 
 ## Superintelligent Code Quality Standards
 
