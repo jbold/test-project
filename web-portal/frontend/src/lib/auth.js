@@ -1,7 +1,9 @@
 import { writable } from 'svelte/store';
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:8000';
+// Environment configuration
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
 
 // Auth store
 export const user = writable(null);
@@ -119,6 +121,21 @@ export async function getDownloadLink() {
   } catch (error) {
     throw new Error(error.response?.data?.detail || 'Failed to get download link');
   }
+}
+
+// URL generation utilities
+export function getAppUrl(path = '') {
+  return `${APP_BASE_URL}${path}`;
+}
+
+export function getDashboardUrl(query = '') {
+  const queryString = query ? `?${query}` : '';
+  return getAppUrl(`/dashboard${queryString}`);
+}
+
+export function getRegistrationUrl(query = '') {
+  const queryString = query ? `?${query}` : '';
+  return getAppUrl(`/register${queryString}`);
 }
 
 // Initialize auth after all functions are defined

@@ -1,5 +1,5 @@
 <script>
-  import { register, createCheckoutSession } from '$lib/auth.js';
+  import { register, createCheckoutSession, getDashboardUrl, getRegistrationUrl } from '$lib/auth.js';
   import { onMount } from 'svelte';
 
   let email = '';
@@ -31,8 +31,8 @@
       await register(email, password, fullName);
       
       // Then create checkout session
-      const successUrl = `${window.location.origin}/dashboard?payment=success`;
-      const cancelUrl = `${window.location.origin}/register?payment=cancelled`;
+      const successUrl = getDashboardUrl('payment=success');
+      const cancelUrl = getRegistrationUrl('payment=cancelled');
       
       const { checkout_url } = await createCheckoutSession(plan, successUrl, cancelUrl);
       
