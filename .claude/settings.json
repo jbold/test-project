@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/security-scan.sh"
+            "command": "./scripts/security-scan.sh"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/validate-env.sh"
+            "command": "./scripts/validate-env.sh"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/format-all.sh"
+            "command": "./scripts/format-all.sh"
           }
         ]
       },
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /home/dev/code/test-project && cargo check"
+            "command": "cargo check"
           }
         ]
       }
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/log-notification.sh"
+            "command": "./scripts/log-notification.sh"
           }
         ]
       }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/session-cleanup.sh"
+            "command": "./scripts/session-cleanup.sh"
           }
         ]
       }
@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/subagent-log.sh"
+            "command": "./scripts/subagent-log.sh"
           }
         ]
       }
@@ -79,7 +79,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/dev/code/test-project/scripts/preserve-context.sh"
+            "command": "./scripts/preserve-context.sh"
           }
         ]
       }

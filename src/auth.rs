@@ -18,9 +18,15 @@ pub struct AuthConfig {
 
 impl Default for AuthConfig {
     fn default() -> Self {
+        let api_base_url = match env::var("ENVIRONMENT") {
+            Ok(env) if env == "production" => {
+                env::var("API_BASE_URL").expect("API_BASE_URL required in production")
+            }
+            _ => env::var("API_BASE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string()),
+        };
+
         Self {
-            api_base_url: env::var("API_BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:8000".to_string()),
+            api_base_url,
             keyring_service: "legal-toolkit".to_string(),
             keyring_account: "auth-token".to_string(),
         }
