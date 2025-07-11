@@ -222,85 +222,42 @@ impl AuthManager {
         
         self.keyring_entry
             .set_password(&token_data.to_string())
-            .map_err(|e| format!("Failed to save token to keyring: {}", e))?;
-        
-        // Also maintain file fallback for development only
-        if env::var("DEVELOPMENT_MODE").unwrap_or_else(|_| "false".to_string()).to_lowercase() == "true" {
-            let token_file_path = self.get_token_file_path()?;
-            fs::write(&token_file_path, token_data.to_string())
-                .map_err(|e| format!("Failed to save token to file: {}", e))?;
-        }
+            .map_err(|e| format!("Failed to save token to keyring: {}", e))?
         
         Ok(())
     }
 
     pub fn load_token(&self) -> Result<Option<String>, String> {
-        // Try to load from secure keyring first
+        // Load from secure keyring only
         match self.keyring_entry.get_password() {
             Ok(token_data) => {
                 let token_json: serde_json::Value = serde_json::from_str(&token_data)
                     .map_err(|e| format!("Failed to parse token from keyring: {}", e))?;
                 
                 if let Some(token) = token_json.get("access_token").and_then(|v| v.as_str()) {
-                    return Ok(Some(token.to_string()));
+                    Ok(Some(token.to_string()))
+                } else {
+                    Ok(None)
                 }
             }
-            Err(keyring::Error::NoEntry) => {
-                // No entry in keyring, try file fallback in development mode
-                if env::var("DEVELOPMENT_MODE").unwrap_or_else(|_| "false".to_string()).to_lowercase() == "true" {
-                    let token_file_path = self.get_token_file_path()?;
-                    if token_file_path.exists() {
-                        let token_data = fs::read_to_string(&token_file_path)
-                            .map_err(|e| format!("Failed to read token file: {}", e))?;
-                        
-                        let token_json: serde_json::Value = serde_json::from_str(&token_data)
-                            .map_err(|e| format!("Failed to parse token file: {}", e))?;
-                        
-                        if let Some(token) = token_json.get("access_token").and_then(|v| v.as_str()) {
-                            return Ok(Some(token.to_string()));
-                        }
-                    }
-                }
-                return Ok(None);
-            }
-            Err(e) => return Err(format!("Failed to load token from keyring: {}", e)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(format!("Failed to load token from keyring: {}", e)),
         }
-        
-        Ok(None)
     }
 
     pub fn clear_token(&self) -> Result<(), String> {
-        // Clear from keyring
+        // Clear from keyring only
         match self.keyring_entry.delete_password() {
-            Ok(()) => {},
-            Err(keyring::Error::NoEntry) => {}, // Already cleared
-            Err(e) => return Err(format!("Failed to clear token from keyring: {}", e)),
+            Ok(()) => Ok(()),
+            Err(keyring::Error::NoEntry) => Ok(()), // Already cleared
+            Err(e) => Err(format!("Failed to clear token from keyring: {}", e)),
         }
-        
-        // Clear file fallback in development mode
-        if env::var("DEVELOPMENT_MODE").unwrap_or_else(|_| "false".to_string()).to_lowercase() == "true" {
-            let token_file_path = self.get_token_file_path()?;
-            if token_file_path.exists() {
-                fs::remove_file(&token_file_path)
-                    .map_err(|e| format!("Failed to remove token file: {}", e))?;
-            }
-        }
-        
-        Ok(())
     }
 
     pub fn has_stored_token(&self) -> bool {
-        // Check keyring first
+        // Check keyring only
         match self.keyring_entry.get_password() {
             Ok(_) => true,
-            Err(keyring::Error::NoEntry) => {
-                // Check file fallback in development mode
-                if env::var("DEVELOPMENT_MODE").unwrap_or_else(|_| "false".to_string()).to_lowercase() == "true" {
-                    self.get_token_file_path().map_or(false, |path| path.exists())
-                } else {
-                    false
-                }
-            }
             Err(_) => false,
         }
     }

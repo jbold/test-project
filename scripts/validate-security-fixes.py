@@ -68,9 +68,9 @@ def validate_secure_token_storage():
     print("✅ Secure token storage implemented using OS keyring")
     return True
 
-def validate_development_bypass_removed():
-    """Validate that development mode bypass has been secured"""
-    print("🔍 Validating development mode security...")
+def validate_stripe_test_mode():
+    """Validate that Stripe test mode is used instead of development bypass"""
+    print("🔍 Validating Stripe test mode implementation...")
     
     main_py_path = Path("web-portal/backend/main.py")
     if not main_py_path.exists():
@@ -84,6 +84,7 @@ def validate_development_bypass_removed():
     dangerous_patterns = [
         r'if\s+os\.getenv\(["\']DEVELOPMENT_MODE["\'].*\):\s*pass\s*#\s*Skip.*check',
         r'DEVELOPMENT_MODE.*true.*:\s*pass',
+        r'os\.getenv\(["\']DEVELOPMENT_MODE["\']',
     ]
     
     for pattern in dangerous_patterns:
@@ -91,17 +92,24 @@ def validate_development_bypass_removed():
             print(f"❌ Found dangerous development bypass: {pattern}")
             return False
     
-    # Check for proper logging
-    if "logger.warning" not in content:
-        print("❌ Missing proper logging for development mode")
-        return False
+    # Check for proper Stripe test mode implementation
+    required_patterns = [
+        r'stripe_secret_key.*startswith\(["\']sk_test_["\']\)',
+        r'is_stripe_test_mode',
+        r'test_subscription',
+    ]
     
-    print("✅ Development mode bypass secured with proper logging")
+    for pattern in required_patterns:
+        if not re.search(pattern, content, re.IGNORECASE):
+            print(f"❌ Missing Stripe test mode feature: {pattern}")
+            return False
+    
+    print("✅ Stripe test mode properly implemented")
     return True
 
-def validate_error_handling():
-    """Validate that error handling masking has been fixed"""
-    print("🔍 Validating error handling...")
+def validate_secure_token_storage_only():
+    """Validate that only secure token storage is used (no plaintext fallback)"""
+    print("🔍 Validating secure-only token storage...")
     
     auth_rs_path = Path("src/auth.rs")
     if not auth_rs_path.exists():
@@ -129,7 +137,19 @@ def validate_error_handling():
         print("❌ Still found error masking patterns")
         return False
     
-    print("✅ Error handling fixed - proper error types and logging")
+    # Check for removal of plaintext token fallback
+    dangerous_patterns = [
+        r'DEVELOPMENT_MODE.*file.*fallback',
+        r'fs::write.*token.*development',
+        r'fs::read_to_string.*token.*development',
+    ]
+    
+    for pattern in dangerous_patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            print(f"❌ Found plaintext token fallback: {pattern}")
+            return False
+    
+    print("✅ Secure-only token storage implemented")
     return True
 
 def validate_environment_configuration():
@@ -141,6 +161,25 @@ def validate_environment_configuration():
     for env_file in env_files:
         if not Path(env_file).exists():
             print(f"❌ Missing environment file: {env_file}")
+            return False
+    
+    # Check that DEVELOPMENT_MODE is removed from .env files
+    for env_file in env_files:
+        with open(env_file) as f:
+            env_content = f.read()
+        
+        if "DEVELOPMENT_MODE" in env_content:
+            print(f"❌ Found DEVELOPMENT_MODE in {env_file} - should be removed")
+            return False
+    
+    # Check for proper Stripe key configuration
+    backend_env_path = Path("web-portal/backend/.env")
+    if backend_env_path.exists():
+        with open(backend_env_path) as f:
+            backend_env_content = f.read()
+        
+        if "sk_test_" not in backend_env_content:
+            print("❌ Missing Stripe test key configuration")
             return False
     
     # Check Cargo.toml for dependencies
@@ -180,8 +219,8 @@ def main():
     checks = [
         validate_hardcoded_urls,
         validate_secure_token_storage,
-        validate_development_bypass_removed,
-        validate_error_handling,
+        validate_stripe_test_mode,
+        validate_secure_token_storage_only,
         validate_environment_configuration,
     ]
     

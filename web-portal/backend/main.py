@@ -228,19 +228,25 @@ async def download_app(current_user: User = Depends(get_current_user), db: Sessi
         UserSubscription.is_active == True
     ).first()
     
-    # Development mode: Allow access with warning log
-    if os.getenv("DEVELOPMENT_MODE", "false").lower() == "true":
-        if not subscription:
-            logger.warning(f"DEVELOPMENT MODE: Allowing app download without subscription for user {current_user.id}")
-            # Still create a mock subscription for proper token generation
+    # Check if we're in Stripe test mode (using test keys)
+    stripe_secret_key = os.getenv("STRIPE_SECRET_KEY", "")
+    is_stripe_test_mode = stripe_secret_key.startswith("sk_test_")
+    
+    if not subscription:
+        if is_stripe_test_mode:
+            logger.info(f"Stripe test mode: Creating test subscription for user {current_user.id}")
+            # In test mode, create a test subscription for development workflow
             subscription = UserSubscription(
                 user_id=current_user.id,
-                plan_type="development",
-                is_active=True
+                plan_type="test_subscription",
+                is_active=True,
+                stripe_subscription_id="test_sub_" + str(current_user.id),
+                created_at=datetime.utcnow()
             )
-    else:
-        # Production mode: Strict subscription check
-        if not subscription:
+            db.add(subscription)
+            db.commit()
+        else:
+            # Production mode: Strict subscription check
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Active subscription required to download app"
