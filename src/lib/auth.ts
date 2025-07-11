@@ -113,7 +113,7 @@ export class AuthService {
     // Clear existing interval if any
     this.stopTokenRefresh();
 
-    // Refresh every 25 minutes (tokens expire after 30 minutes)
+    // Refresh every 20 minutes (tokens expire after 30 minutes)
     this.refreshInterval = setInterval(
       async () => {
         try {
@@ -130,8 +130,8 @@ export class AuthService {
           window.dispatchEvent(new CustomEvent("auth-expired"));
         }
       },
-      25 * 60 * 1000,
-    ); // 25 minutes
+      20 * 60 * 1000,
+    ); // 20 minutes
   }
 
   private static stopTokenRefresh(): void {
