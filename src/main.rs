@@ -3,13 +3,15 @@
 
 mod auth;
 
-use auth::{AuthManager, login_user, validate_token, logout_user, check_auth_status, refresh_user_profile};
+use auth::{
+    check_auth_status, login_user, logout_user, refresh_user_profile, validate_token, AuthManager,
+};
 
 #[tokio::main]
 async fn main() {
     // Load environment variables from .env file
     dotenv::dotenv().ok();
-    
+
     let auth_manager = AuthManager::new().expect("Failed to initialize auth manager");
 
     tauri::Builder::default()
