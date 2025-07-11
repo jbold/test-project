@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -6,7 +6,11 @@ from datetime import datetime, timedelta
 from typing import Optional
 import stripe
 import os
+import logging
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from database import SessionLocal, engine, init_db
 from models import User, UserSubscription
@@ -25,13 +29,30 @@ init_db()
 
 app = FastAPI(title="Legal Toolkit Web Portal", version="1.0.0")
 
-# Configure CORS
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Rate limiting setup
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Configure CORS - Restricted for security
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
 # Stripe configuration
@@ -78,11 +99,15 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     return user
 
 @app.post("/auth/register", response_model=UserResponse)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")  # 3 registration attempts per minute
+async def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
+    logger.info(f"Registration attempt for email: {user.email}")
+    
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
+        logger.warning(f"Registration failed - email already exists: {user.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -100,6 +125,8 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
+    logger.info(f"User registered successfully: {user.email} (ID: {db_user.id})")
+    
     return UserResponse(
         id=db_user.id,
         email=db_user.email,
@@ -109,10 +136,14 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     )
 
 @app.post("/auth/login", response_model=TokenResponse)
-async def login(user: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")  # 5 login attempts per minute
+async def login(request: Request, user: UserLogin, db: Session = Depends(get_db)):
     """Login user and return JWT token"""
+    logger.info(f"Login attempt for email: {user.email}")
+    
     db_user = db.query(User).filter(User.email == user.email).first()
     if not db_user or not verify_password(user.password, db_user.hashed_password):
+        logger.warning(f"Failed login attempt for email: {user.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -126,6 +157,7 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
         )
     
     access_token = create_access_token(data={"sub": str(db_user.id)})
+    logger.info(f"Successful login for email: {user.email} (ID: {db_user.id})")
     return TokenResponse(access_token=access_token, token_type="bearer")
 
 @app.post("/payment/create-checkout")
@@ -191,7 +223,7 @@ async def create_checkout_session(
 async def download_app(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Download app with auth token (requires active subscription)"""
     # Development bypass - remove this in production
-    if os.getenv("DEVELOPMENT_MODE", "true").lower() == "true":
+    if os.getenv("DEVELOPMENT_MODE", "false").lower() == "true":
         pass  # Skip subscription check in development
     else:
         # Check if user has active subscription
@@ -245,7 +277,8 @@ async def get_user_profile(current_user: User = Depends(get_current_user), db: S
     return response
 
 @app.post("/webhook/stripe")
-async def stripe_webhook(request, db: Session = Depends(get_db)):
+@limiter.limit("100/minute")  # High limit for legitimate webhook traffic
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     """Handle Stripe webhooks"""
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
@@ -278,6 +311,11 @@ async def stripe_webhook(request, db: Session = Depends(get_db)):
         db.commit()
     
     return {"status": "success"}
+
+# Health check endpoint for production
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.utcnow()}
 
 if __name__ == "__main__":
     import uvicorn

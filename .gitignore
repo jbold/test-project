@@ -70,3 +70,9 @@ docker-compose.override.yml
 evidence/
 case-files/
 temp/
+
+# Project Documentation (private)
+CLAUDE.md
+
+# Backend environment files
+web-portal/backend/.env
