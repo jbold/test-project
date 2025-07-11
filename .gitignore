@@ -1,0 +1,78 @@
+# Dependencies
+node_modules/
+target/
+dist/
+build/
+.svelte-kit/
+
+# Environment
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Cache
+.cache/
+.npm/
+.cargo/registry
+.cargo/git
+
+# Tauri
+/src-tauri/target/
+/src-tauri/Cargo.lock
+
+# Svelte
+.svelte-kit/
+build/
+package/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# DevContainer
+.devcontainer/.env
+
+# Legal Toolkit specific
+*.pdf
+*.docx
+evidence/
+case-files/
+temp/
+
+# Project Documentation (private)
+CLAUDE.md
+
+# Backend environment files
+web-portal/backend/.env

@@ -1,0 +1,39 @@
+{
+  "productName": "Legal Toolkit",
+  "version": "0.1.0",
+  "identifier": "com.legaltoolkit.app",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "dist"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "copyright": "Copyright (c) 2024 Legal Toolkit",
+    "shortDescription": "Legal case management toolkit",
+    "longDescription": "A privacy-first legal case management toolkit for employment law disputes"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "Legal Toolkit",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "all": false,
+      "open": true
+    }
+  }
+}
