@@ -11,8 +11,10 @@
   onMount(async () => {
     isLoading.set(true);
     try {
+      console.log('Starting authentication check...');
       // Check if user has a stored token and validate it
       const result = await AuthService.validateToken();
+      console.log('Auth validation result:', result);
       if (result.success && result.user_profile) {
         const userData = createUserFromProfile(result.user_profile, result.token!);
         user.set(userData);
@@ -23,8 +25,9 @@
       }
     } catch (err) {
       console.error('Error during initial auth check:', err);
-      error.set('Failed to check authentication status');
+      error.set(`Failed to check authentication status: ${err}`);
     } finally {
+      console.log('Authentication check complete, setting loading to false');
       isLoading.set(false);
     }
   });
@@ -96,6 +99,12 @@
       <div class="spinner"></div>
       <p>Loading...</p>
     </div>
+  </div>
+{:else if $error}
+  <div class="container">
+    <h1>Error</h1>
+    <p>Error details: {$error}</p>
+    <button on:click={() => { error.set(null); isLoading.set(false); }}>Dismiss Error</button>
   </div>
 {:else if $user?.authenticated}
   <Dashboard />

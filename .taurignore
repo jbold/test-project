@@ -1,0 +1,11 @@
+web-portal/**
+**/*.log
+**/.env*
+**/node_modules/**
+**/target/**
+**/.git/**
+dist/**
+.svelte-kit/**
+.vite/**
+.DS_Store
+Thumbs.db

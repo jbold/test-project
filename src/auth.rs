@@ -97,6 +97,7 @@ impl AuthManager {
         })
     }
 
+    #[allow(dead_code)]
     fn get_token_file_path(&self) -> Result<PathBuf, String> {
         let mut token_file_path =
             dirs::data_local_dir().ok_or("Failed to get local data directory")?;

@@ -7,16 +7,16 @@
     isLoading.set(true);
     
     try {
-      const userExists = await AuthService.checkUserExists();
-      if (!userExists) {
-        // First time user - they'll need to create an account
+      const hasAuth = await AuthService.checkAuthStatus();
+      if (!hasAuth) {
+        // No stored authentication - user needs to login
         user.set(null);
       } else {
-        // User exists but needs to authenticate
+        // User has stored auth but we'll validate it in the main page
         user.set(null);
       }
     } catch (error) {
-      console.error('Error checking user:', error);
+      console.error('Error checking auth status:', error);
     } finally {
       isLoading.set(false);
     }

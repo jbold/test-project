@@ -1,4 +1,18 @@
-import { invoke } from "@tauri-apps/api/core";
+// Check if we're running in Tauri desktop app
+function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI__" in window;
+}
+
+// Dynamic import for Tauri invoke
+async function getTauriInvoke() {
+  if (!isTauri()) return null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke;
+  } catch {
+    return null;
+  }
+}
 
 export interface AuthResult {
   success: boolean;
@@ -33,15 +47,54 @@ export class AuthService {
 
   static async login(email: string, password: string): Promise<AuthResult> {
     try {
-      const credentials: UserCredentials = { email, password };
-      const result = await invoke<AuthResult>("login_user", { credentials });
+      const invoke = await getTauriInvoke();
 
-      if (result.success) {
-        // Start automatic token refresh
-        this.startTokenRefresh();
+      if (invoke) {
+        // Desktop app - use Tauri backend
+        const credentials: UserCredentials = { email, password };
+        const result = await invoke<AuthResult>("login_user", { credentials });
+
+        if (result.success) {
+          this.startTokenRefresh();
+        }
+        return result;
+      } else {
+        // Browser - use web API
+        const response = await fetch("http://localhost:8000/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Store token in localStorage for browser
+          localStorage.setItem("auth_token", data.access_token);
+
+          // Get user profile
+          const profileResponse = await fetch(
+            "http://localhost:8000/user/profile",
+            {
+              headers: { Authorization: `Bearer ${data.access_token}` },
+            },
+          );
+
+          if (profileResponse.ok) {
+            const profile = await profileResponse.json();
+            return {
+              success: true,
+              message: "Login successful",
+              token: data.access_token,
+              user_profile: profile,
+            };
+          }
+        }
+
+        return {
+          success: false,
+          message: "Login failed - check credentials",
+        };
       }
-
-      return result;
     } catch (error) {
       console.error("Error during login:", error);
       return {
@@ -53,18 +106,51 @@ export class AuthService {
 
   static async validateToken(): Promise<AuthResult> {
     try {
-      const result = await invoke<AuthResult>("validate_token");
+      const invoke = await getTauriInvoke();
 
-      if (result.success) {
-        // Start automatic token refresh if not already running
-        if (!this.refreshInterval) {
-          this.startTokenRefresh();
+      if (invoke) {
+        // Desktop app - use Tauri backend
+        const result = await invoke<AuthResult>("validate_token");
+
+        if (result.success) {
+          if (!this.refreshInterval) {
+            this.startTokenRefresh();
+          }
+        } else {
+          this.stopTokenRefresh();
         }
+        return result;
       } else {
-        this.stopTokenRefresh();
-      }
+        // Browser - check localStorage token
+        const token = localStorage.getItem("auth_token");
+        if (!token) {
+          return {
+            success: false,
+            message: "No token found",
+          };
+        }
 
-      return result;
+        // Validate with web API
+        const response = await fetch("http://localhost:8000/user/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const profile = await response.json();
+          return {
+            success: true,
+            message: "Token valid",
+            token,
+            user_profile: profile,
+          };
+        } else {
+          localStorage.removeItem("auth_token");
+          return {
+            success: false,
+            message: "Token invalid",
+          };
+        }
+      }
     } catch (error) {
       console.error("Error validating token:", error);
       this.stopTokenRefresh();
@@ -78,7 +164,19 @@ export class AuthService {
   static async logout(): Promise<AuthResult> {
     try {
       this.stopTokenRefresh();
-      return await invoke<AuthResult>("logout_user");
+      const invoke = await getTauriInvoke();
+
+      if (invoke) {
+        // Desktop app - use Tauri backend
+        return await invoke<AuthResult>("logout_user");
+      } else {
+        // Browser - just clear localStorage
+        localStorage.removeItem("auth_token");
+        return {
+          success: true,
+          message: "Logged out successfully",
+        };
+      }
     } catch (error) {
       console.error("Error during logout:", error);
       return {
@@ -90,7 +188,15 @@ export class AuthService {
 
   static async checkAuthStatus(): Promise<boolean> {
     try {
-      return await invoke<boolean>("check_auth_status");
+      const invoke = await getTauriInvoke();
+
+      if (invoke) {
+        // Desktop app - use Tauri backend
+        return await invoke<boolean>("check_auth_status");
+      } else {
+        // Browser - check localStorage
+        return localStorage.getItem("auth_token") !== null;
+      }
     } catch (error) {
       console.error("Error checking auth status:", error);
       return false;
