@@ -100,6 +100,12 @@
       <p>Loading...</p>
     </div>
   </div>
+{:else if $error}
+  <div class="container">
+    <h1>Error</h1>
+    <p>Error details: {$error}</p>
+    <button on:click={() => { error.set(null); isLoading.set(false); }}>Dismiss Error</button>
+  </div>
 {:else if $user?.authenticated}
   <Dashboard />
 {:else}
