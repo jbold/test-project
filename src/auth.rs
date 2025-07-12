@@ -97,22 +97,6 @@ impl AuthManager {
         })
     }
 
-    #[allow(dead_code)]
-    fn get_token_file_path(&self) -> Result<PathBuf, String> {
-        let mut token_file_path =
-            dirs::data_local_dir().ok_or("Failed to get local data directory")?;
-        token_file_path.push("legal-toolkit");
-
-        // Create directory if it doesn't exist
-        if !token_file_path.exists() {
-            fs::create_dir_all(&token_file_path)
-                .map_err(|e| format!("Failed to create data directory: {}", e))?;
-        }
-
-        token_file_path.push("auth_token.json");
-        Ok(token_file_path)
-    }
-
     pub async fn login(&self, email: &str, password: &str) -> Result<AuthResult, String> {
         let mut login_data = HashMap::new();
         login_data.insert("email", email);

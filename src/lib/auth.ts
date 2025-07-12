@@ -1,3 +1,9 @@
+// Environment configuration
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const WEB_PORTAL_URL =
+  import.meta.env.VITE_WEB_PORTAL_URL || "http://localhost:3000";
+
 // Check if we're running in Tauri desktop app
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI__" in window;
@@ -60,7 +66,7 @@ export class AuthService {
         return result;
       } else {
         // Browser - use web API
-        const response = await fetch("http://localhost:8000/auth/login", {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
@@ -72,12 +78,9 @@ export class AuthService {
           localStorage.setItem("auth_token", data.access_token);
 
           // Get user profile
-          const profileResponse = await fetch(
-            "http://localhost:8000/user/profile",
-            {
-              headers: { Authorization: `Bearer ${data.access_token}` },
-            },
-          );
+          const profileResponse = await fetch(`${API_BASE_URL}/user/profile`, {
+            headers: { Authorization: `Bearer ${data.access_token}` },
+          });
 
           if (profileResponse.ok) {
             const profile = await profileResponse.json();
@@ -131,7 +134,7 @@ export class AuthService {
         }
 
         // Validate with web API
-        const response = await fetch("http://localhost:8000/user/profile", {
+        const response = await fetch(`${API_BASE_URL}/user/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -205,7 +208,15 @@ export class AuthService {
 
   static async refreshUserProfile(): Promise<AuthResult> {
     try {
-      return await invoke<AuthResult>("refresh_user_profile");
+      const invoke = await getTauriInvoke();
+
+      if (invoke) {
+        // Desktop app - use Tauri backend
+        return await invoke<AuthResult>("refresh_user_profile");
+      } else {
+        // Browser fallback - validate current token
+        return await this.validateToken();
+      }
     } catch (error) {
       console.error("Error refreshing user profile:", error);
       return {
