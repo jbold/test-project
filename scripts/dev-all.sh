@@ -183,13 +183,13 @@ echo "  • IPFS Gateway:     http://localhost:8080"
 echo "  • Vector DB UI:     http://localhost:6333/dashboard"
 echo ""
 echo "⚡ Ultra-Rapid Development Mode Active!"
+echo ""
+echo "🚀 To start desktop app:"
+echo "  cargo tauri dev"
+echo ""
 echo "Press Ctrl+C to stop all services"
 
-# Now start desktop app (this will block until user closes)
-start_desktop
-
-# Wait for desktop app
-wait $DESKTOP_PID
-
-echo "🏁 Desktop app closed. Stopping all services..."
-cleanup
+# Keep services running
+while true; do
+    sleep 1
+done
