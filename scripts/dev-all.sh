@@ -13,7 +13,7 @@ fi
 # Function to start services
 start_services() {
     echo "🐳 Starting backing services..."
-    docker-compose -f docker-compose.dev.yml up -d postgres redis ipfs vector-db minio
+    docker compose -f docker-compose.dev.yml up -d postgres redis ipfs vector-db minio
     
     # Wait for services to be ready
     echo "⏳ Waiting for services to start..."
@@ -113,7 +113,7 @@ cleanup() {
     
     # Stop docker services
     echo "🐳 Stopping Docker services..."
-    docker-compose -f docker-compose.dev.yml down
+    docker compose -f docker-compose.dev.yml down
     
     echo "✅ Full cleanup complete"
     exit 0
@@ -126,8 +126,14 @@ trap cleanup INT TERM
 echo "🔍 Checking development dependencies..."
 
 # Check Docker
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose not found. Install Docker first."
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker not found. Install Docker first."
+    exit 1
+fi
+
+# Check Docker Compose (try both old and new syntax)
+if ! (command -v docker-compose &> /dev/null || docker compose version &> /dev/null); then
+    echo "❌ Docker Compose not found. Install Docker Compose."
     exit 1
 fi
 
