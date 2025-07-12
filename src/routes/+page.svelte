@@ -4,15 +4,24 @@
   import { AuthService } from '$lib/auth';
   import Dashboard from '$lib/components/Dashboard.svelte';
 
+  // Environment configuration
+  const WEB_PORTAL_URL = import.meta.env.VITE_WEB_PORTAL_URL || 'http://localhost:3000';
+
   let email = '';
   let password = '';
   let authResult: string | null = null;
 
   onMount(async () => {
+    // Set up auth expiration event listener
+    const handleAuthExpiredEvent = () => {
+      handleAuthExpired();
+    };
+    window.addEventListener('auth-expired', handleAuthExpiredEvent);
+
+    // Initialize authentication check
     isLoading.set(true);
     try {
       console.log('Starting authentication check...');
-      // Check if user has a stored token and validate it
       const result = await AuthService.validateToken();
       console.log('Auth validation result:', result);
       if (result.success && result.user_profile) {
@@ -30,6 +39,11 @@
       console.log('Authentication check complete, setting loading to false');
       isLoading.set(false);
     }
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('auth-expired', handleAuthExpiredEvent);
+    };
   });
 
   async function handleLogin() {
@@ -76,19 +90,6 @@
     user.set(null);
     error.set('Your session has expired. Please log in again.');
   }
-
-  // Listen for auth expiration events
-  onMount(() => {
-    const handleAuthExpiredEvent = () => {
-      handleAuthExpired();
-    };
-
-    window.addEventListener('auth-expired', handleAuthExpiredEvent);
-    
-    return () => {
-      window.removeEventListener('auth-expired', handleAuthExpiredEvent);
-    };
-  });
 
   $: if (email || password) clearMessages();
 </script>
@@ -163,7 +164,7 @@
         </button>
 
         <div class="auth-footer">
-          <p>Don't have an account? <a href="http://localhost:3000/register" target="_blank">Register here</a></p>
+          <p>Don't have an account? <a href="{WEB_PORTAL_URL}/register" target="_blank">Register here</a></p>
           <p class="note">Registration and subscription management is handled through the web portal.</p>
         </div>
       </div>
